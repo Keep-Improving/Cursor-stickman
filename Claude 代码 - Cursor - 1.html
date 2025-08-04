@@ -1,0 +1,1982 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>沙盒绘画创造游戏</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        
+        .toolbar {
+            background: #2c3e50;
+            color: white;
+            padding: 10px;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .tool-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .tool-btn {
+            background: #34495e;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+        
+        .tool-btn:hover {
+            background: #3498db;
+        }
+        
+        .tool-btn.active {
+            background: #e74c3c;
+        }
+        
+        .color-picker {
+            width: 40px;
+            height: 30px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .slider {
+            width: 100px;
+        }
+        
+        .canvas-container {
+            flex: 1;
+            position: relative;
+            background: white;
+        }
+        
+        #gameCanvas {
+            cursor: crosshair;
+            display: block;
+        }
+        
+        .info-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            max-width: 200px;
+        }
+        
+        .objects-panel {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            max-width: 250px;
+        }
+        
+        .collision-panel {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 12px;
+            max-width: 200px;
+            display: none;
+        }
+        
+        .collision-panel.show {
+            display: block;
+        }
+        
+        .collision-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 5px 0;
+        }
+        
+        .collision-option input[type="checkbox"] {
+            margin: 0;
+        }
+        
+        .collision-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 5px 0;
+        }
+        
+        .collision-impact {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            margin: 10px 0;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+        }
+        
+        .impact-slider {
+            width: 100%;
+            height: 4px;
+            background: #555;
+            border-radius: 2px;
+            outline: none;
+        }
+        
+        .impact-slider::-webkit-slider-thumb {
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #3498db;
+            border-radius: 50%;
+            cursor: pointer;
+        }
+        
+        .impact-value {
+            font-size: 10px;
+            color: #ccc;
+            text-align: center;
+        }
+        
+        .type-selector {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.9);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            display: none;
+            z-index: 1000;
+        }
+        
+        .type-selector.show {
+            display: block;
+        }
+        
+        .type-option {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            background: #34495e;
+            border: none;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+            text-align: left;
+        }
+        
+        .type-option:hover {
+            background: #3498db;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="toolbar">
+            <div class="tool-group">
+                <button class="tool-btn active" id="drawTool">🖊️ 绘画</button>
+                <button class="tool-btn" id="moveTool">✋ 移动</button>
+                <button class="tool-btn" id="selectTool">📦 选择</button>
+                <button class="tool-btn" id="deleteTool">🗑️ 删除</button>
+            </div>
+            
+            <div class="tool-group">
+                <label>颜色:</label>
+                <input type="color" class="color-picker" id="colorPicker" value="#000000">
+            </div>
+            
+            <div class="tool-group">
+                <label>线宽:</label>
+                <input type="range" class="slider" id="brushSize" min="1" max="10" value="3">
+                <span id="brushSizeValue">3</span>
+            </div>
+            
+            <div class="tool-group">
+                <button class="tool-btn" id="clearCanvas">🧹 清空</button>
+                <button class="tool-btn" id="groupObjects">🔗 组合</button>
+                <button class="tool-btn" id="ungroupObjects">🔓 取消组合</button>
+                <button class="tool-btn" id="changeTypeTool">🔄 改变类型</button>
+            </div>
+            
+            <div class="tool-group">
+                <button class="tool-btn" id="physicsToggle">⚡ 物理</button>
+                <button class="tool-btn" id="animateToggle">🎬 动画</button>
+                <button class="tool-btn" id="controlToggle">🎮 键盘控制</button>
+                <button class="tool-btn" id="collisionDebugToggle">🔍 碰撞调试</button>
+            </div>
+            
+            <div class="tool-group">
+                <label>碰撞精度:</label>
+                <input type="range" class="slider" id="collisionPrecision" min="1" max="10" value="5">
+                <span id="collisionPrecisionValue">5</span>
+            </div>
+        </div>
+        
+        <div class="canvas-container">
+            <canvas id="gameCanvas"></canvas>
+            
+            <div class="info-panel">
+                <h4>操作说明:</h4>
+                <p>• 绘画：拖拽画线</p>
+                <p>• 移动：拖拽物体</p>
+                <p>• 选择：框选物体</p>
+                <p>• 改变类型：点击物体改变其身份</p>
+                <p>• 物理：重力效果</p>
+                <p>• 动画：火柴人动起来</p>
+                <p>• 键盘控制：WASD或方向键移动选中的火柴人</p>
+                <p>• 互动功能：E键拾取/放下附近的物体（仅火柴人）</p>
+                <p>• 碰撞调试：显示碰撞检测的可视化效果</p>
+                <p>• 碰撞设置：控制哪些类型参与碰撞</p>
+                <p>• 碰撞影响：控制不同类型被碰撞影响的程度</p>
+                <p>• 碰撞精度：控制碰撞检测的精确度（1-10）</p>
+                <p>• 平台影响为0时仍可跳跃，但平台不会移动</p>
+                <div id="collisionInfo" style="margin-top: 10px; padding: 5px; background: rgba(255,255,255,0.1); border-radius: 3px;">
+                    <small>当前碰撞精度: <span id="currentPrecision">5</span><br>
+                    碰撞容差: <span id="currentTolerance">2.0</span></small>
+                </div>
+            </div>
+            
+            <div class="objects-panel">
+                <h4>创建的物体:</h4>
+                <div id="objectsList">暂无</div>
+            </div>
+            
+            <div class="collision-panel" id="collisionPanel">
+                <h4>碰撞设置:</h4>
+                <div class="collision-option">
+                    <input type="checkbox" id="collisionStickman" checked>
+                    <label for="collisionStickman">火柴人</label>
+                </div>
+                <div class="collision-option">
+                    <input type="checkbox" id="collisionCircle" checked>
+                    <label for="collisionCircle">圆形</label>
+                </div>
+                <div class="collision-option">
+                    <input type="checkbox" id="collisionPlatform" checked>
+                    <label for="collisionPlatform">平台</label>
+                </div>
+                <div class="collision-option">
+                    <input type="checkbox" id="collisionDrawing" checked>
+                    <label for="collisionDrawing">绘画</label>
+                </div>
+                <div class="collision-option">
+                    <input type="checkbox" id="collisionGroup" checked>
+                    <label for="collisionGroup">组合物体</label>
+                </div>
+                
+                <h4>碰撞影响程度:</h4>
+                <div class="collision-impact">
+                    <label>火柴人影响: <span id="impactStickmanValue">100%</span></label>
+                    <input type="range" class="impact-slider" id="impactStickman" min="0" max="100" value="100">
+                </div>
+                <div class="collision-impact">
+                    <label>圆形影响: <span id="impactCircleValue">100%</span></label>
+                    <input type="range" class="impact-slider" id="impactCircle" min="0" max="100" value="100">
+                </div>
+                <div class="collision-impact">
+                    <label>平台影响: <span id="impactPlatformValue">0%</span></label>
+                    <input type="range" class="impact-slider" id="impactPlatform" min="0" max="100" value="0">
+                </div>
+                <div class="collision-impact">
+                    <label>绘画影响: <span id="impactDrawingValue">100%</span></label>
+                    <input type="range" class="impact-slider" id="impactDrawing" min="0" max="100" value="100">
+                </div>
+                <div class="collision-impact">
+                    <label>组合物体影响: <span id="impactGroupValue">100%</span></label>
+                    <input type="range" class="impact-slider" id="impactGroup" min="0" max="100" value="100">
+                </div>
+            </div>
+        </div>
+        
+        <div class="type-selector" id="typeSelector">
+            <h4>选择新的类型:</h4>
+            <button class="type-option" data-type="stickman">🧍 火柴人</button>
+            <button class="type-option" data-type="circle">⭕ 圆形</button>
+            <button class="type-option" data-type="platform">🏗️ 平台</button>
+            <button class="type-option" data-type="drawing">🎨 绘画</button>
+            <button class="type-option" data-type="cancel">❌ 取消</button>
+        </div>
+    </div>
+
+    <script>
+        class SandboxGame {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.resizeCanvas();
+                
+                // 游戏状态
+                this.currentTool = 'draw';
+                this.isDrawing = false;
+                this.physicsEnabled = false;
+                this.animationEnabled = false;
+                this.controlEnabled = false;
+                this.collisionDebugEnabled = false;
+                
+                // 碰撞设置
+                this.collisionSettings = {
+                    stickman: true,
+                    circle: true,
+                    platform: true,
+                    drawing: true,
+                    group: true
+                };
+                
+                // 碰撞影响程度设置 (0-100%)
+                this.collisionImpactSettings = {
+                    stickman: 100,
+                    circle: 100,
+                    platform: 0,  // 平台默认不受碰撞影响
+                    drawing: 100,
+                    group: 100
+                };
+                
+                // 碰撞精度设置 (1-10)
+                this.collisionPrecision = 5;
+                this.collisionTolerance = 2; // 基础碰撞容差
+                
+                // 类型选择器
+                this.typeSelectorVisible = false;
+                this.objectToChange = null;
+                
+                // 选择相关
+                this.isSelecting = false;
+                this.selectionStart = null;
+                this.selectionEnd = null;
+                this.selectedObjects = [];
+                
+                // 绘画设置
+                this.currentColor = '#000000';
+                this.brushSize = 3;
+                
+                // 对象
+                this.drawnObjects = [];
+                this.currentPath = [];
+                this.selectedObject = null;
+                
+                // 物理
+                this.gravity = 0.5;
+                this.friction = 0.98;
+                
+                // 动画
+                this.animationFrame = 0;
+                
+                // 键盘控制
+                this.keys = {};
+                this.controlledObject = null;
+                
+                // 互动系统
+                this.interactionEnabled = true;
+                this.heldObject = null; // 当前持有的对象
+                this.interactionRange = 50; // 互动范围
+                this.interactionCooldown = 0; // 互动冷却时间
+                
+                this.setupEventListeners();
+                this.gameLoop();
+            }
+            
+            resizeCanvas() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight - 60;
+            }
+            
+            setupEventListeners() {
+                // 工具按钮
+                document.getElementById('drawTool').addEventListener('click', () => this.setTool('draw'));
+                document.getElementById('moveTool').addEventListener('click', () => this.setTool('move'));
+                document.getElementById('selectTool').addEventListener('click', () => this.setTool('select'));
+                document.getElementById('deleteTool').addEventListener('click', () => this.setTool('delete'));
+                
+                // 设置
+                document.getElementById('colorPicker').addEventListener('change', (e) => {
+                    this.currentColor = e.target.value;
+                });
+                
+                document.getElementById('brushSize').addEventListener('input', (e) => {
+                    this.brushSize = parseInt(e.target.value);
+                    document.getElementById('brushSizeValue').textContent = this.brushSize;
+                });
+                
+                document.getElementById('clearCanvas').addEventListener('click', () => this.clearCanvas());
+                document.getElementById('groupObjects').addEventListener('click', () => this.groupSelectedObjects());
+                document.getElementById('ungroupObjects').addEventListener('click', () => this.ungroupSelectedObjects());
+                document.getElementById('physicsToggle').addEventListener('click', () => this.togglePhysics());
+                document.getElementById('animateToggle').addEventListener('click', () => this.toggleAnimation());
+                document.getElementById('controlToggle').addEventListener('click', () => this.toggleControl());
+                document.getElementById('collisionDebugToggle').addEventListener('click', () => this.toggleCollisionDebug());
+                document.getElementById('changeTypeTool').addEventListener('click', () => this.setTool('changeType'));
+                
+                // 碰撞设置事件监听器
+                document.getElementById('collisionStickman').addEventListener('change', (e) => {
+                    this.collisionSettings.stickman = e.target.checked;
+                });
+                document.getElementById('collisionCircle').addEventListener('change', (e) => {
+                    this.collisionSettings.circle = e.target.checked;
+                });
+                document.getElementById('collisionPlatform').addEventListener('change', (e) => {
+                    this.collisionSettings.platform = e.target.checked;
+                });
+                document.getElementById('collisionDrawing').addEventListener('change', (e) => {
+                    this.collisionSettings.drawing = e.target.checked;
+                });
+                document.getElementById('collisionGroup').addEventListener('change', (e) => {
+                    this.collisionSettings.group = e.target.checked;
+                });
+                
+                // 碰撞影响程度事件监听器
+                document.getElementById('impactStickman').addEventListener('input', (e) => {
+                    this.collisionImpactSettings.stickman = parseInt(e.target.value);
+                    document.getElementById('impactStickmanValue').textContent = e.target.value + '%';
+                });
+                document.getElementById('impactCircle').addEventListener('input', (e) => {
+                    this.collisionImpactSettings.circle = parseInt(e.target.value);
+                    document.getElementById('impactCircleValue').textContent = e.target.value + '%';
+                });
+                document.getElementById('impactPlatform').addEventListener('input', (e) => {
+                    this.collisionImpactSettings.platform = parseInt(e.target.value);
+                    document.getElementById('impactPlatformValue').textContent = e.target.value + '%';
+                });
+                document.getElementById('impactDrawing').addEventListener('input', (e) => {
+                    this.collisionImpactSettings.drawing = parseInt(e.target.value);
+                    document.getElementById('impactDrawingValue').textContent = e.target.value + '%';
+                });
+                document.getElementById('impactGroup').addEventListener('input', (e) => {
+                    this.collisionImpactSettings.group = parseInt(e.target.value);
+                    document.getElementById('impactGroupValue').textContent = e.target.value + '%';
+                });
+                
+                // 碰撞精度事件监听器
+                document.getElementById('collisionPrecision').addEventListener('input', (e) => {
+                    this.collisionPrecision = parseInt(e.target.value);
+                    this.collisionTolerance = Math.max(0.5, 4 - this.collisionPrecision * 0.3);
+                    document.getElementById('collisionPrecisionValue').textContent = this.collisionPrecision;
+                    
+                    // 更新信息面板显示
+                    document.getElementById('currentPrecision').textContent = this.collisionPrecision;
+                    document.getElementById('currentTolerance').textContent = this.collisionTolerance.toFixed(1);
+                });
+                
+                // 类型选择器事件监听器
+                document.querySelectorAll('.type-option').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        const type = e.target.dataset.type;
+                        this.changeObjectType(type);
+                    });
+                });
+                
+                // 鼠标事件
+                this.canvas.addEventListener('mousedown', (e) => this.onMouseDown(e));
+                this.canvas.addEventListener('mousemove', (e) => this.onMouseMove(e));
+                this.canvas.addEventListener('mouseup', () => this.onMouseUp());
+                
+                // 触摸事件（移动端支持）
+                this.canvas.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    const touch = e.touches[0];
+                    const mouseEvent = new MouseEvent('mousedown', {
+                        clientX: touch.clientX,
+                        clientY: touch.clientY
+                    });
+                    this.canvas.dispatchEvent(mouseEvent);
+                });
+                
+                this.canvas.addEventListener('touchmove', (e) => {
+                    e.preventDefault();
+                    const touch = e.touches[0];
+                    const mouseEvent = new MouseEvent('mousemove', {
+                        clientX: touch.clientX,
+                        clientY: touch.clientY
+                    });
+                    this.canvas.dispatchEvent(mouseEvent);
+                });
+                
+                this.canvas.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    const mouseEvent = new MouseEvent('mouseup', {});
+                    this.canvas.dispatchEvent(mouseEvent);
+                });
+                
+                // 窗口大小调整
+                window.addEventListener('resize', () => this.resizeCanvas());
+                
+                // 键盘事件
+                window.addEventListener('keydown', (e) => this.onKeyDown(e));
+                window.addEventListener('keyup', (e) => this.onKeyUp(e));
+            }
+            
+            setTool(tool) {
+                this.currentTool = tool;
+                document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+                document.getElementById(tool + 'Tool').classList.add('active');
+                
+                const cursors = {
+                    draw: 'crosshair',
+                    move: 'grab',
+                    select: 'crosshair',
+                    delete: 'not-allowed',
+                    changeType: 'pointer'
+                };
+                this.canvas.style.cursor = cursors[tool] || 'default';
+            }
+            
+            togglePhysics() {
+                this.physicsEnabled = !this.physicsEnabled;
+                const btn = document.getElementById('physicsToggle');
+                btn.classList.toggle('active');
+                btn.textContent = this.physicsEnabled ? '⚡ 物理:开' : '⚡ 物理';
+            }
+            
+            toggleAnimation() {
+                this.animationEnabled = !this.animationEnabled;
+                const btn = document.getElementById('animateToggle');
+                btn.classList.toggle('active');
+                btn.textContent = this.animationEnabled ? '🎬 动画:开' : '🎬 动画';
+            }
+            
+            toggleControl() {
+                this.controlEnabled = !this.controlEnabled;
+                const btn = document.getElementById('controlToggle');
+                btn.classList.toggle('active');
+                btn.textContent = this.controlEnabled ? '🎮 控制:开' : '🎮 键盘控制';
+                
+                if (this.controlEnabled) {
+                    // 自动选择第一个火柴人或组合对象作为控制对象
+                    this.controlledObject = this.drawnObjects.find(obj => 
+                        obj.type === 'stickman' || (obj.type === 'group' && this.hasStickmanInGroup(obj))
+                    );
+                    
+                    if (this.controlledObject) {
+                        this.selectedObjects = [this.controlledObject];
+                    } else {
+                        alert('请先绘制一个火柴人或选择一个包含火柴人的组合对象！');
+                        this.controlEnabled = false;
+                        btn.classList.remove('active');
+                        btn.textContent = '🎮 键盘控制';
+                    }
+                } else {
+                    this.controlledObject = null;
+                }
+            }
+            
+            toggleCollisionDebug() {
+                this.collisionDebugEnabled = !this.collisionDebugEnabled;
+                const btn = document.getElementById('collisionDebugToggle');
+                btn.classList.toggle('active');
+                btn.textContent = this.collisionDebugEnabled ? '🔍 碰撞调试:开' : '🔍 碰撞调试';
+                
+                // 显示/隐藏碰撞设置面板
+                const panel = document.getElementById('collisionPanel');
+                if (this.collisionDebugEnabled) {
+                    panel.classList.add('show');
+                } else {
+                    panel.classList.remove('show');
+                }
+            }
+            
+            hasStickmanInGroup(groupObj) {
+                if (!groupObj.isGroup) return false;
+                return groupObj.groupPaths.some(pathData => pathData.originalType === 'stickman');
+            }
+            
+            onKeyDown(e) {
+                if (!this.controlEnabled || !this.controlledObject) return;
+                
+                this.keys[e.code] = true;
+                e.preventDefault(); // 防止页面滚动
+            }
+            
+            onKeyUp(e) {
+                if (!this.controlEnabled) return;
+                
+                this.keys[e.code] = false;
+                e.preventDefault();
+            }
+            
+            handleKeyboardControl() {
+                if (!this.controlEnabled || !this.controlledObject) return;
+                
+                const moveSpeed = 5;
+                const jumpPower = 12;
+                let dx = 0, dy = 0;
+                
+                // 水平移动 (A/D 或 左右方向键)
+                if (this.keys['KeyA'] || this.keys['ArrowLeft']) {
+                    dx = -moveSpeed;
+                }
+                if (this.keys['KeyD'] || this.keys['ArrowRight']) {
+                    dx = moveSpeed;
+                }
+                
+                // 垂直移动 (W/S 或 上下方向键)
+                if (!this.physicsEnabled) {
+                    // 如果物理关闭，可以自由上下移动
+                    if (this.keys['KeyW'] || this.keys['ArrowUp']) {
+                        dy = -moveSpeed;
+                    }
+                    if (this.keys['KeyS'] || this.keys['ArrowDown']) {
+                        dy = moveSpeed;
+                    }
+                } else {
+                    // 如果物理开启，W键或上方向键用于跳跃
+                    if ((this.keys['KeyW'] || this.keys['ArrowUp']) && this.controlledObject.isGrounded) {
+                        this.controlledObject.velocity.y = -jumpPower;
+                        this.controlledObject.isGrounded = false;
+                    }
+                }
+                
+                // 应用移动
+                if (dx !== 0 || dy !== 0) {
+                    if (this.physicsEnabled && dx !== 0) {
+                        // 物理模式下，水平移动影响速度
+                        this.controlledObject.velocity.x += dx * 0.3;
+                        // 限制最大速度
+                        this.controlledObject.velocity.x = Math.max(-10, Math.min(10, this.controlledObject.velocity.x));
+                    } else {
+                        // 非物理模式或垂直移动，直接移动位置
+                        this.moveObjectBy(this.controlledObject, dx, dy);
+                    }
+                }
+                
+                // 添加行走动画效果
+                if (dx !== 0 && this.animationEnabled) {
+                    this.controlledObject.walkingAnimation = (this.controlledObject.walkingAnimation || 0) + 0.3;
+                    this.controlledObject.animationPhase = Math.sin(this.controlledObject.walkingAnimation) * 0.15;
+                } else {
+                    this.controlledObject.walkingAnimation = 0;
+                }
+                
+                // 互动功能 - E键拾取/放下
+                if (this.keys['KeyE'] && this.interactionCooldown <= 0) {
+                    this.handleInteraction();
+                    this.interactionCooldown = 10; // 设置冷却时间
+                }
+                
+                // 更新冷却时间
+                if (this.interactionCooldown > 0) {
+                    this.interactionCooldown--;
+                }
+            }
+            
+            getMousePos(e) {
+                const rect = this.canvas.getBoundingClientRect();
+                return {
+                    x: e.clientX - rect.left,
+                    y: e.clientY - rect.top
+                };
+            }
+            
+            handleInteraction() {
+                if (!this.controlledObject || this.controlledObject.type !== 'stickman') {
+                    console.log('互动失败：没有控制对象或不是火柴人');
+                    return; // 只有火柴人可以进行互动
+                }
+                
+                if (this.heldObject) {
+                    // 放下持有的对象
+                    this.dropHeldObject();
+                } else {
+                    // 尝试拾取附近的对象
+                    this.pickupNearbyObject();
+                }
+            }
+            
+            pickupNearbyObject() {
+                const stickman = this.controlledObject;
+                let closestObject = null;
+                let closestDistance = this.interactionRange;
+                
+                console.log(`尝试拾取，控制对象：${stickman.type}，总对象数：${this.drawnObjects.length}`);
+                
+                for (const obj of this.drawnObjects) {
+                    if (obj === stickman || obj.type === 'stickman') continue; // 不能拾取其他火柴人
+                    
+                    const distance = this.getDistance(stickman.center, obj.center);
+                    console.log(`检查对象 ${obj.type}，距离：${distance.toFixed(2)}`);
+                    
+                    if (distance < closestDistance) {
+                        closestObject = obj;
+                        closestDistance = distance;
+                    }
+                }
+                
+                if (closestObject) {
+                    this.heldObject = closestObject;
+                    closestObject.isHeld = true;
+                    closestObject.heldBy = stickman;
+                    
+                    // 添加视觉反馈
+                    closestObject.interactionEffect = 20;
+                    
+                    console.log(`火柴人拾取了 ${closestObject.type} 对象`);
+                    console.log(`持有状态: isHeld=${closestObject.isHeld}, heldBy=${closestObject.heldBy ? closestObject.heldBy.type : 'null'}`);
+                } else {
+                    console.log('没有找到可拾取的对象');
+                }
+            }
+            
+            dropHeldObject() {
+                if (!this.heldObject) return;
+                
+                const stickman = this.controlledObject;
+                const obj = this.heldObject;
+                
+                // 计算放下位置（在火柴人前方）
+                const dropOffset = 30;
+                const direction = stickman.facingDirection || 1; // 1为右，-1为左
+                
+                obj.center.x = stickman.center.x + dropOffset * direction;
+                obj.center.y = stickman.center.y;
+                
+                // 移除持有状态
+                obj.isHeld = false;
+                obj.heldBy = null;
+                this.heldObject = null;
+                
+                // 添加视觉反馈
+                obj.interactionEffect = 20;
+                
+                console.log(`火柴人放下了 ${obj.type} 对象`);
+            }
+            
+            getDistance(pos1, pos2) {
+                const dx = pos1.x - pos2.x;
+                const dy = pos1.y - pos2.y;
+                return Math.sqrt(dx * dx + dy * dy);
+            }
+            
+            onMouseDown(e) {
+                const pos = this.getMousePos(e);
+                
+                switch(this.currentTool) {
+                    case 'draw':
+                        this.startDrawing(pos);
+                        break;
+                    case 'select':
+                        this.startSelection(pos);
+                        break;
+                    case 'move':
+                    case 'delete':
+                        this.selectObject(pos);
+                        break;
+                    case 'changeType':
+                        this.selectObjectForTypeChange(pos);
+                        break;
+                }
+            }
+            
+            onMouseMove(e) {
+                const pos = this.getMousePos(e);
+                
+                if (this.currentTool === 'draw' && this.isDrawing) {
+                    this.continueDrawing(pos);
+                } else if (this.currentTool === 'select' && this.isSelecting) {
+                    this.updateSelection(pos);
+                } else if (this.currentTool === 'move' && this.selectedObject) {
+                    this.moveObject(pos);
+                }
+            }
+            
+            onMouseUp() {
+                if (this.currentTool === 'draw' && this.isDrawing) {
+                    this.finishDrawing();
+                } else if (this.currentTool === 'select' && this.isSelecting) {
+                    this.finishSelection();
+                }
+                this.isDrawing = false;
+                this.isSelecting = false;
+                this.selectedObject = null;
+            }
+            
+            startDrawing(pos) {
+                this.isDrawing = true;
+                this.currentPath = [pos];
+            }
+            
+            continueDrawing(pos) {
+                this.currentPath.push(pos);
+            }
+            
+            finishDrawing() {
+                if (this.currentPath.length > 2) {
+                    const object = this.createObjectFromPath(this.currentPath);
+                    this.drawnObjects.push(object);
+                    this.updateObjectsList();
+                }
+                this.currentPath = [];
+            }
+            
+            startSelection(pos) {
+                this.isSelecting = true;
+                this.selectionStart = pos;
+                this.selectionEnd = pos;
+                this.selectedObjects = [];
+            }
+            
+            updateSelection(pos) {
+                this.selectionEnd = pos;
+            }
+            
+            finishSelection() {
+                if (this.selectionStart && this.selectionEnd) {
+                    const minX = Math.min(this.selectionStart.x, this.selectionEnd.x);
+                    const maxX = Math.max(this.selectionStart.x, this.selectionEnd.x);
+                    const minY = Math.min(this.selectionStart.y, this.selectionEnd.y);
+                    const maxY = Math.max(this.selectionStart.y, this.selectionEnd.y);
+                    
+                    this.selectedObjects = this.drawnObjects.filter(obj => {
+                        return obj.center.x >= minX && obj.center.x <= maxX &&
+                               obj.center.y >= minY && obj.center.y <= maxY;
+                    });
+                }
+                
+                this.selectionStart = null;
+                this.selectionEnd = null;
+            }
+            
+            selectObject(pos) {
+                const clickedObject = this.drawnObjects.find(obj => {
+                    return pos.x >= obj.bounds.minX && pos.x <= obj.bounds.maxX &&
+                           pos.y >= obj.bounds.minY && pos.y <= obj.bounds.maxY;
+                });
+                
+                if (clickedObject) {
+                    if (this.currentTool === 'delete') {
+                        this.deleteObject(clickedObject);
+                    } else {
+                        this.selectedObject = clickedObject;
+                        // 如果启用了键盘控制且点击的是火柴人，设为控制对象
+                        if (this.controlEnabled && (clickedObject.type === 'stickman' || 
+                            (clickedObject.type === 'group' && this.hasStickmanInGroup(clickedObject)))) {
+                            this.controlledObject = clickedObject;
+                            this.selectedObjects = [clickedObject];
+                        }
+                    }
+                }
+            }
+            
+            selectObjectForTypeChange(pos) {
+                const clickedObject = this.drawnObjects.find(obj => {
+                    return pos.x >= obj.bounds.minX && pos.x <= obj.bounds.maxX &&
+                           pos.y >= obj.bounds.minY && pos.y <= obj.bounds.maxY;
+                });
+                
+                if (clickedObject) {
+                    this.objectToChange = clickedObject;
+                    this.showTypeSelector();
+                } else {
+                    alert('请点击一个对象来改变其类型！');
+                }
+            }
+            
+            showTypeSelector() {
+                const selector = document.getElementById('typeSelector');
+                selector.classList.add('show');
+                this.typeSelectorVisible = true;
+            }
+            
+            hideTypeSelector() {
+                const selector = document.getElementById('typeSelector');
+                selector.classList.remove('show');
+                this.typeSelectorVisible = false;
+                this.objectToChange = null;
+            }
+            
+            changeObjectType(newType) {
+                if (newType === 'cancel') {
+                    this.hideTypeSelector();
+                    return;
+                }
+                
+                if (this.objectToChange) {
+                    const oldType = this.objectToChange.type;
+                    this.objectToChange.type = newType;
+                    
+                    // 根据新类型调整对象的属性
+                    this.adjustObjectProperties(this.objectToChange, newType);
+                    
+                    // 更新对象列表显示
+                    this.updateObjectsList();
+                    
+                    // 显示成功消息
+                    alert(`已将 ${this.getTypeName(oldType)} 改为 ${this.getTypeName(newType)}`);
+                    
+                    this.hideTypeSelector();
+                }
+            }
+            
+            getTypeName(type) {
+                const typeNames = {
+                    stickman: '火柴人',
+                    circle: '圆形',
+                    platform: '平台',
+                    drawing: '绘画',
+                    group: '组合物体'
+                };
+                return typeNames[type] || type;
+            }
+            
+            adjustObjectProperties(obj, newType) {
+                switch (newType) {
+                    case 'platform':
+                        // 平台通常不需要动画和物理
+                        obj.velocity = { x: 0, y: 0 };
+                        obj.isGrounded = true;
+                        break;
+                    case 'stickman':
+                        // 火柴人需要动画和物理
+                        obj.velocity = { x: 0, y: 0 };
+                        obj.isGrounded = false;
+                        break;
+                    case 'circle':
+                        // 圆形可以滚动
+                        obj.velocity = { x: 0, y: 0 };
+                        obj.isGrounded = false;
+                        break;
+                    default:
+                        // 其他类型保持默认设置
+                        break;
+                }
+            }
+            
+            moveObject(pos) {
+                if (this.selectedObject) {
+                    const dx = pos.x - this.selectedObject.center.x;
+                    const dy = pos.y - this.selectedObject.center.y;
+                    this.moveObjectBy(this.selectedObject, dx, dy);
+                }
+            }
+            
+            deleteObject(object) {
+                const index = this.drawnObjects.indexOf(object);
+                if (index > -1) {
+                    this.drawnObjects.splice(index, 1);
+                    this.updateObjectsList();
+                }
+            }
+            
+            clearCanvas() {
+                this.drawnObjects = [];
+                this.selectedObjects = [];
+                this.updateObjectsList();
+            }
+            
+            groupSelectedObjects() {
+                if (this.selectedObjects.length < 2) {
+                    alert('请先选择至少2个物体再进行组合！');
+                    return;
+                }
+                
+                const group = this.createGroup(this.selectedObjects);
+                
+                // 从原数组中移除被组合的对象
+                this.selectedObjects.forEach(obj => {
+                    const index = this.drawnObjects.indexOf(obj);
+                    if (index > -1) {
+                        this.drawnObjects.splice(index, 1);
+                    }
+                });
+                
+                // 添加组合对象
+                this.drawnObjects.push(group);
+                this.selectedObjects = [group];
+                this.updateObjectsList();
+            }
+            
+            ungroupSelectedObjects() {
+                const groupsToUngroup = this.selectedObjects.filter(obj => obj.isGroup);
+                
+                if (groupsToUngroup.length === 0) {
+                    alert('请选择要取消组合的对象！');
+                    return;
+                }
+                
+                groupsToUngroup.forEach(group => {
+                    // 移除组合对象
+                    const index = this.drawnObjects.indexOf(group);
+                    if (index > -1) {
+                        this.drawnObjects.splice(index, 1);
+                    }
+                    
+                    // 重新创建独立对象
+                    group.groupPaths.forEach(pathData => {
+                        const newObj = {
+                            id: Date.now() + Math.random(),
+                            type: pathData.originalType || 'drawing',
+                            path: [...pathData.path],
+                            color: pathData.color,
+                            lineWidth: pathData.lineWidth,
+                            bounds: this.calculateBounds(pathData.path, pathData.lineWidth),
+                            center: this.calculateCenter(pathData.path),
+                            rotation: 0,
+                            velocity: { x: 0, y: 0 },
+                            animationPhase: 0,
+                            isGrounded: false
+                        };
+                        this.drawnObjects.push(newObj);
+                    });
+                });
+                
+                this.selectedObjects = [];
+                this.updateObjectsList();
+            }
+            
+            createGroup(objects) {
+                let minX = Infinity, maxX = -Infinity;
+                let minY = Infinity, maxY = -Infinity;
+                
+                const allPaths = [];
+                objects.forEach(obj => {
+                    if (obj.isGroup) {
+                        // 如果是组合对象，添加其所有子路径
+                        allPaths.push(...obj.groupPaths);
+                    } else {
+                        // 普通对象，添加其路径
+                        allPaths.push({
+                            path: [...obj.path], // 复制路径
+                            color: obj.color,
+                            lineWidth: obj.lineWidth,
+                            originalType: obj.type // 保存原始类型
+                        });
+                    }
+                    
+                    // 更新边界
+                    minX = Math.min(minX, obj.bounds.minX);
+                    maxX = Math.max(maxX, obj.bounds.maxX);
+                    minY = Math.min(minY, obj.bounds.minY);
+                    maxY = Math.max(maxY, obj.bounds.maxY);
+                });
+                
+                return {
+                    id: Date.now(),
+                    type: 'group',
+                    isGroup: true,
+                    groupPaths: allPaths,
+                    path: [], // 组合对象不需要单一路径
+                    color: '#27ae60',
+                    lineWidth: 3,
+                    bounds: { minX, maxX, minY, maxY },
+                    center: {
+                        x: (minX + maxX) / 2,
+                        y: (minY + maxY) / 2
+                    },
+                    rotation: 0,
+                    velocity: { x: 0, y: 0 },
+                    animationPhase: 0,
+                    isGrounded: false,
+                    isHeld: false,
+                    heldBy: null
+                };
+            }
+            
+            calculateCenter(path) {
+                const bounds = this.calculateBounds(path, this.brushSize);
+                return {
+                    x: (bounds.minX + bounds.maxX) / 2,
+                    y: (bounds.minY + bounds.maxY) / 2
+                };
+            }
+            
+            createObjectFromPath(path) {
+                const type = this.detectObjectType(path);
+                const bounds = this.calculateBounds(path, this.brushSize);
+                
+                return {
+                    id: Date.now(),
+                    type: type,
+                    path: [...path],
+                    color: this.currentColor,
+                    lineWidth: this.brushSize,
+                    bounds: bounds,
+                    center: {
+                        x: (bounds.minX + bounds.maxX) / 2,
+                        y: (bounds.minY + bounds.maxY) / 2
+                    },
+                    rotation: 0,
+                    velocity: { x: 0, y: 0 },
+                    animationPhase: 0,
+                    isGrounded: false,
+                    isHeld: false,
+                    heldBy: null
+                };
+            }
+            
+            detectObjectType(path) {
+                const bounds = this.calculateBounds(path, this.brushSize);
+                const width = bounds.maxX - bounds.minX;
+                const height = bounds.maxY - bounds.minY;
+                
+                if (this.isStickmanShape(path, bounds)) {
+                    return 'stickman';
+                } else if (Math.abs(width - height) < 30 && this.isCircular(path)) {
+                    return 'circle';
+                } else if (width > height * 2) {
+                    return 'platform';
+                } else {
+                    return 'drawing';
+                }
+            }
+            
+            isStickmanShape(path, bounds) {
+                const width = bounds.maxX - bounds.minX;
+                const height = bounds.maxY - bounds.minY;
+                
+                if (height <= width * 1.2) return false;
+                
+                const segments = this.analyzePathSegments(path);
+                const hasVerticalTrunk = segments.verticalSegments > 0;
+                const hasBranches = segments.branches >= 2;
+                const hasComplexity = path.length > 20;
+                
+                return hasVerticalTrunk && hasBranches && hasComplexity;
+            }
+            
+            analyzePathSegments(path) {
+                let verticalSegments = 0;
+                let branches = 0;
+                
+                for (let i = 1; i < path.length - 1; i++) {
+                    const prev = path[i - 1];
+                    const curr = path[i];
+                    const next = path[i + 1];
+                    
+                    const angle1 = Math.atan2(curr.y - prev.y, curr.x - prev.x);
+                    const angle2 = Math.atan2(next.y - curr.y, next.x - curr.x);
+                    let angleDiff = Math.abs(angle2 - angle1);
+                    
+                    if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
+                    
+                    if (Math.abs(angle1) < Math.PI / 6 || Math.abs(angle1 - Math.PI) < Math.PI / 6) {
+                        verticalSegments++;
+                    }
+                    
+                    if (angleDiff > Math.PI / 3) {
+                        branches++;
+                    }
+                }
+                
+                return { verticalSegments, branches };
+            }
+            
+            isCircular(path) {
+                const center = this.calculateBounds(path, this.brushSize);
+                const centerX = (center.minX + center.maxX) / 2;
+                const centerY = (center.minY + center.maxY) / 2;
+                
+                let avgDistance = 0;
+                path.forEach(point => {
+                    avgDistance += Math.sqrt((point.x - centerX) ** 2 + (point.y - centerY) ** 2);
+                });
+                avgDistance /= path.length;
+                
+                let variance = 0;
+                path.forEach(point => {
+                    const distance = Math.sqrt((point.x - centerX) ** 2 + (point.y - centerY) ** 2);
+                    variance += (distance - avgDistance) ** 2;
+                });
+                variance /= path.length;
+                
+                return variance < avgDistance * 0.3;
+            }
+            
+            calculateBounds(path, lineWidth = 3) {
+                let minX = Infinity, maxX = -Infinity;
+                let minY = Infinity, maxY = -Infinity;
+                
+                // 考虑线宽的一半作为边界扩展
+                const halfWidth = lineWidth / 2;
+                
+                path.forEach(point => {
+                    minX = Math.min(minX, point.x - halfWidth);
+                    maxX = Math.max(maxX, point.x + halfWidth);
+                    minY = Math.min(minY, point.y - halfWidth);
+                    maxY = Math.max(maxY, point.y + halfWidth);
+                });
+                
+                return { minX, maxX, minY, maxY };
+            }
+            
+            moveObjectBy(obj, dx, dy) {
+                obj.center.x += dx;
+                obj.center.y += dy;
+                
+                if (obj.isGroup) {
+                    // 对于组合对象，移动所有子路径
+                    obj.groupPaths.forEach(pathData => {
+                        pathData.path.forEach(point => {
+                            point.x += dx;
+                            point.y += dy;
+                        });
+                    });
+                } else {
+                    // 普通对象移动
+                    obj.path.forEach(point => {
+                        point.x += dx;
+                        point.y += dy;
+                    });
+                }
+                
+                obj.bounds.minX += dx;
+                obj.bounds.maxX += dx;
+                obj.bounds.minY += dy;
+                obj.bounds.maxY += dy;
+            }
+            
+            update() {
+                // 处理键盘控制
+                this.handleKeyboardControl();
+                
+                // 处理被持有物体的跟随（无论物理是否启用）
+                this.drawnObjects.forEach(obj => {
+                    if (obj.isHeld && obj.heldBy) {
+                        this.updateHeldObject(obj);
+                    }
+                });
+                
+                if (this.physicsEnabled) {
+                    this.drawnObjects.forEach(obj => {
+                        if (obj.type === 'platform') {
+                            return;
+                        }
+                        
+                        this.updateObjectPhysics(obj);
+                    });
+                    
+                    // 检测和处理碰撞
+                    this.detectCollisions();
+                }
+                
+                if (this.animationEnabled) {
+                    this.animationFrame += 0.1;
+                    this.drawnObjects.forEach(obj => {
+                        if (obj.type === 'stickman' || obj.type === 'group') {
+                            // 如果不是被控制的对象或没有行走动画，使用默认动画
+                            if (obj !== this.controlledObject || !obj.walkingAnimation) {
+                                obj.animationPhase = Math.sin(this.animationFrame) * 0.1;
+                            }
+                        }
+                    });
+                }
+            }
+            
+            detectCollisions() {
+                // 根据碰撞精度调整检测频率
+                const detectionInterval = Math.max(1, Math.floor(10 / this.collisionPrecision));
+                
+                for (let i = 0; i < this.drawnObjects.length; i++) {
+                    for (let j = i + 1; j < this.drawnObjects.length; j++) {
+                        // 在高精度模式下，减少检测频率以提高性能
+                        if (this.collisionPrecision >= 8 && (i + j) % detectionInterval !== 0) {
+                            continue;
+                        }
+                        
+                        const obj1 = this.drawnObjects[i];
+                        const obj2 = this.drawnObjects[j];
+                        
+                        // 检查碰撞设置
+                        if (!this.shouldCollide(obj1, obj2)) {
+                            continue;
+                        }
+                        
+                        if (this.checkCollision(obj1, obj2)) {
+                            this.resolveCollision(obj1, obj2);
+                        }
+                    }
+                }
+            }
+            
+            shouldCollide(obj1, obj2) {
+                // 检查两个对象是否都应该参与碰撞
+                const type1 = obj1.type;
+                const type2 = obj2.type;
+                
+                // 如果任一类型的碰撞被禁用，则不碰撞
+                if (!this.collisionSettings[type1] || !this.collisionSettings[type2]) {
+                    return false;
+                }
+                
+                // 平台与平台不碰撞
+                if (type1 === 'platform' && type2 === 'platform') {
+                    return false;
+                }
+                
+                return true;
+            }
+            
+            checkCollision(obj1, obj2) {
+                // 首先进行AABB碰撞检测（快速筛选）
+                const bounds1 = obj1.bounds;
+                const bounds2 = obj2.bounds;
+                
+                // 根据碰撞精度调整边界框扩展
+                const expansion = this.collisionTolerance * 2;
+                
+                if (bounds1.maxX + expansion < bounds2.minX - expansion || 
+                    bounds1.minX - expansion > bounds2.maxX + expansion || 
+                    bounds1.maxY + expansion < bounds2.minY - expansion || 
+                    bounds1.minY - expansion > bounds2.maxY + expansion) {
+                    return false;
+                }
+                
+                // 如果AABB检测通过，进行更精确的路径碰撞检测
+                return this.checkPathCollision(obj1, obj2);
+            }
+            
+            checkPathCollision(obj1, obj2) {
+                const paths1 = this.getObjectPaths(obj1);
+                const paths2 = this.getObjectPaths(obj2);
+                
+                for (const path1 of paths1) {
+                    for (const path2 of paths2) {
+                        if (this.checkPathIntersection(path1, path2)) {
+                            return true;
+                        }
+                    }
+                }
+                
+                return false;
+            }
+            
+            getObjectPaths(obj) {
+                if (obj.isGroup) {
+                    return obj.groupPaths.map(pathData => pathData.path);
+                } else {
+                    return [obj.path];
+                }
+            }
+            
+            checkPathIntersection(path1, path2) {
+                // 使用可配置的碰撞精度
+                const tolerance = this.collisionTolerance;
+                const precision = this.collisionPrecision;
+                
+                // 根据精度调整检测密度
+                const step1 = Math.max(1, Math.floor(path1.length / (precision * 2)));
+                const step2 = Math.max(1, Math.floor(path2.length / (precision * 2)));
+                
+                for (let i = 0; i < path1.length - 1; i += step1) {
+                    const line1 = {
+                        x1: path1[i].x,
+                        y1: path1[i].y,
+                        x2: path1[Math.min(i + 1, path1.length - 1)].x,
+                        y2: path1[Math.min(i + 1, path1.length - 1)].y
+                    };
+                    
+                    for (let j = 0; j < path2.length - 1; j += step2) {
+                        const line2 = {
+                            x1: path2[j].x,
+                            y1: path2[j].y,
+                            x2: path2[Math.min(j + 1, path2.length - 1)].x,
+                            y2: path2[Math.min(j + 1, path2.length - 1)].y
+                        };
+                        
+                        if (this.checkLineIntersection(line1, line2, tolerance)) {
+                            return true;
+                        }
+                    }
+                }
+                
+                // 高精度模式下的额外检测：检查点到线的距离
+                if (precision >= 7) {
+                    return this.checkPointToPathDistance(path1, path2, tolerance) ||
+                           this.checkPointToPathDistance(path2, path1, tolerance);
+                }
+                
+                return false;
+            }
+            
+            checkLineIntersection(line1, line2, tolerance = 0) {
+                // 检查两条线段是否相交，支持容差
+                const det = (line1.x2 - line1.x1) * (line2.y2 - line2.y1) - 
+                           (line2.x2 - line2.x1) * (line1.y2 - line1.y1);
+                
+                if (Math.abs(det) < 0.001) {
+                    // 平行线，检查距离
+                    return this.checkParallelLineDistance(line1, line2, tolerance);
+                }
+                
+                const t = ((line2.x1 - line1.x1) * (line2.y2 - line2.y1) - 
+                          (line2.x2 - line2.x1) * (line2.y1 - line1.y1)) / det;
+                const u = ((line1.x2 - line1.x1) * (line2.y1 - line1.y1) - 
+                          (line2.y2 - line2.y1) * (line1.x1 - line2.x1)) / det;
+                
+                // 考虑容差
+                return t >= -tolerance && t <= 1 + tolerance && 
+                       u >= -tolerance && u <= 1 + tolerance;
+            }
+            
+            checkParallelLineDistance(line1, line2, tolerance) {
+                // 检查平行线之间的距离
+                const dist1 = this.pointToLineDistance(line1.x1, line1.y1, line2);
+                const dist2 = this.pointToLineDistance(line1.x2, line1.y2, line2);
+                const dist3 = this.pointToLineDistance(line2.x1, line2.y1, line1);
+                const dist4 = this.pointToLineDistance(line2.x2, line2.y2, line1);
+                
+                return Math.min(dist1, dist2, dist3, dist4) <= tolerance;
+            }
+            
+            pointToLineDistance(px, py, line) {
+                const A = px - line.x1;
+                const B = py - line.y1;
+                const C = line.x2 - line.x1;
+                const D = line.y2 - line.y1;
+                
+                const dot = A * C + B * D;
+                const lenSq = C * C + D * D;
+                let param = -1;
+                
+                if (lenSq !== 0) param = dot / lenSq;
+                
+                let xx, yy;
+                if (param < 0) {
+                    xx = line.x1;
+                    yy = line.y1;
+                } else if (param > 1) {
+                    xx = line.x2;
+                    yy = line.y2;
+                } else {
+                    xx = line.x1 + param * C;
+                    yy = line.y1 + param * D;
+                }
+                
+                const dx = px - xx;
+                const dy = py - yy;
+                return Math.sqrt(dx * dx + dy * dy);
+            }
+            
+            checkPointToPathDistance(path1, path2, tolerance) {
+                // 检查路径1中的点到路径2的距离
+                const step = Math.max(1, Math.floor(path1.length / 10));
+                
+                for (let i = 0; i < path1.length; i += step) {
+                    const point = path1[i];
+                    let minDistance = Infinity;
+                    
+                    // 找到到路径2的最短距离
+                    for (let j = 0; j < path2.length - 1; j++) {
+                        const line = {
+                            x1: path2[j].x,
+                            y1: path2[j].y,
+                            x2: path2[j + 1].x,
+                            y2: path2[j + 1].y
+                        };
+                        
+                        const distance = this.pointToLineDistance(point.x, point.y, line);
+                        minDistance = Math.min(minDistance, distance);
+                    }
+                    
+                    if (minDistance <= tolerance) {
+                        return true;
+                    }
+                }
+                
+                return false;
+            }
+            
+            resolveCollision(obj1, obj2) {
+                // 获取碰撞影响程度
+                const impact1 = this.collisionImpactSettings[obj1.type] / 100;
+                const impact2 = this.collisionImpactSettings[obj2.type] / 100;
+                
+                // 计算碰撞方向和深度
+                const overlapX = Math.min(obj1.bounds.maxX - obj2.bounds.minX, 
+                                        obj2.bounds.maxX - obj1.bounds.minX);
+                const overlapY = Math.min(obj1.bounds.maxY - obj2.bounds.minY, 
+                                        obj2.bounds.maxY - obj1.bounds.minY);
+                
+                // 选择重叠较小的轴进行分离
+                if (overlapX < overlapY) {
+                    // 水平分离 - 根据影响程度调整分离距离
+                    if (obj1.bounds.minX < obj2.bounds.minX) {
+                        this.moveObjectBy(obj1, -overlapX * 0.5 * impact1, 0);
+                        this.moveObjectBy(obj2, overlapX * 0.5 * impact2, 0);
+                    } else {
+                        this.moveObjectBy(obj1, overlapX * 0.5 * impact1, 0);
+                        this.moveObjectBy(obj2, -overlapX * 0.5 * impact2, 0);
+                    }
+                    
+                    // 交换水平速度 - 根据影响程度调整速度交换
+                    const tempVx = obj1.velocity.x;
+                    obj1.velocity.x = obj2.velocity.x * 0.8 * impact2;
+                    obj2.velocity.x = tempVx * 0.8 * impact1;
+                } else {
+                    // 垂直分离 - 根据影响程度调整分离距离
+                    if (obj1.bounds.minY < obj2.bounds.minY) {
+                        this.moveObjectBy(obj1, 0, -overlapY * 0.5 * impact1);
+                        this.moveObjectBy(obj2, 0, overlapY * 0.5 * impact2);
+                    } else {
+                        this.moveObjectBy(obj1, 0, overlapY * 0.5 * impact1);
+                        this.moveObjectBy(obj2, 0, -overlapY * 0.5 * impact2);
+                    }
+                    
+                    // 交换垂直速度 - 根据影响程度调整速度交换
+                    const tempVy = obj1.velocity.y;
+                    obj1.velocity.y = obj2.velocity.y * 0.8 * impact2;
+                    obj2.velocity.y = tempVy * 0.8 * impact1;
+                    
+                    // 地面对象特殊处理 - 即使影响为0也要处理地面检测
+                    const groundTypes = ['platform', 'drawing', 'circle', 'stickman'];
+                    if (groundTypes.includes(obj2.type)) {
+                        obj1.isGrounded = true;
+                        obj1.velocity.y = 0;
+                    } else if (groundTypes.includes(obj1.type)) {
+                        obj2.isGrounded = true;
+                        obj2.velocity.y = 0;
+                    }
+                }
+                
+                // 添加碰撞效果（可选）
+                this.addCollisionEffect(obj1, obj2);
+            }
+            
+            addCollisionEffect(obj1, obj2) {
+                // 为碰撞的对象添加视觉反馈
+                obj1.collisionEffect = 10;
+                obj2.collisionEffect = 10;
+                
+                // 可以在这里添加音效或其他效果
+                console.log(`碰撞: ${obj1.type} 与 ${obj2.type}`);
+            }
+            
+            checkGroundCollision(obj) {
+                // 检查对象是否与其他对象碰撞（作为地面）
+                const result = { isOnGround: false, groundY: 0 };
+                
+                for (const otherObj of this.drawnObjects) {
+                    if (otherObj === obj) continue;
+                    
+                    // 检查可以作为地面的对象类型：平台、绘画、圆形、火柴人
+                    if (otherObj.type !== 'platform' && otherObj.type !== 'drawing' && 
+                        otherObj.type !== 'circle' && otherObj.type !== 'stickman') continue;
+                    
+                    // 检查碰撞设置
+                    if (!this.collisionSettings[obj.type] || !this.collisionSettings[otherObj.type]) {
+                        continue;
+                    }
+                    
+                    // 检查是否在对象上方
+                    if (obj.bounds.maxY <= otherObj.bounds.minY) {
+                        // 预测下一帧的位置
+                        const nextY = obj.bounds.maxY + obj.velocity.y;
+                        
+                        if (nextY >= otherObj.bounds.minY && nextY <= otherObj.bounds.maxY) {
+                            // 检查水平位置是否重叠
+                            if (obj.bounds.minX < otherObj.bounds.maxX && obj.bounds.maxX > otherObj.bounds.minX) {
+                                // 检查路径碰撞
+                                if (this.checkPathCollision(obj, otherObj)) {
+                                    result.isOnGround = true;
+                                    result.groundY = otherObj.bounds.minY;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                return result;
+            }
+            
+            updateHeldObject(obj) {
+                const holder = obj.heldBy;
+                const holdOffset = 20; // 持有时的偏移距离
+                
+                console.log(`跟随移动: ${obj.type} 跟随 ${holder.type} 到 (${holder.center.x.toFixed(1)}, ${holder.center.y.toFixed(1)})`);
+                
+                // 跟随持有者移动
+                obj.center.x = holder.center.x;
+                obj.center.y = holder.center.y - holdOffset;
+                
+                // 更新边界
+                obj.bounds = this.calculateBounds(obj.path, obj.lineWidth);
+            }
+            
+            updateObjectPhysics(obj) {
+                // 如果对象被持有，跟随持有者移动
+                if (obj.isHeld && obj.heldBy) {
+                    this.updateHeldObject(obj);
+                    return;
+                }
+                
+                if (!obj.isGrounded) {
+                    obj.velocity.y += this.gravity;
+                }
+                
+                // 检查与画布底部和其他对象的碰撞
+                let isOnGround = false;
+                const groundLevel = this.canvas.height - 20;
+                
+                // 检查画布底部
+                if (obj.bounds.maxY + obj.velocity.y >= groundLevel) {
+                    isOnGround = true;
+                    obj.velocity.y = 0;
+                    obj.velocity.x *= this.friction;
+                    
+                    const adjustY = groundLevel - obj.bounds.maxY;
+                    this.moveObjectBy(obj, obj.velocity.x, adjustY);
+                } else {
+                    // 检查与其他对象的碰撞（作为地面）
+                    const collisionResult = this.checkGroundCollision(obj);
+                    if (collisionResult.isOnGround) {
+                        isOnGround = true;
+                        obj.velocity.y = 0;
+                        obj.velocity.x *= this.friction;
+                        
+                        // 调整位置到碰撞对象上方
+                        const adjustY = collisionResult.groundY - obj.bounds.maxY;
+                        this.moveObjectBy(obj, obj.velocity.x, adjustY);
+                    } else {
+                        this.moveObjectBy(obj, obj.velocity.x, obj.velocity.y);
+                    }
+                }
+                
+                obj.isGrounded = isOnGround;
+                
+                if (obj.center.x < 50 || obj.center.x > this.canvas.width - 50) {
+                    obj.velocity.x *= -0.5;
+                }
+            }
+            
+            render() {
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                this.drawGrid();
+                
+                // 绘制对象
+                this.drawnObjects.forEach(obj => {
+                    this.drawObject(obj);
+                });
+                
+                // 绘制当前路径
+                if (this.currentPath.length > 0) {
+                    this.drawPath(this.currentPath, this.currentColor, this.brushSize);
+                }
+                
+                // 绘制选择框
+                if (this.isSelecting && this.selectionStart && this.selectionEnd) {
+                    this.drawSelectionBox();
+                }
+                
+                // 绘制选中对象的边框
+                this.selectedObjects.forEach(obj => {
+                    this.drawObjectBorder(obj);
+                });
+                
+                // 绘制碰撞调试信息
+                if (this.collisionDebugEnabled) {
+                    this.drawCollisionDebug();
+                }
+            }
+            
+            drawGrid() {
+                const gridSize = 40;
+                this.ctx.strokeStyle = 'rgba(200, 200, 200, 0.3)';
+                this.ctx.lineWidth = 1;
+                
+                for (let x = 0; x < this.canvas.width; x += gridSize) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(x, 0);
+                    this.ctx.lineTo(x, this.canvas.height);
+                    this.ctx.stroke();
+                }
+                
+                for (let y = 0; y < this.canvas.height; y += gridSize) {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(0, y);
+                    this.ctx.lineTo(this.canvas.width, y);
+                    this.ctx.stroke();
+                }
+            }
+            
+            drawObject(obj) {
+                this.ctx.save();
+                
+                if (obj.animationPhase && (obj.type === 'stickman' || obj.type === 'group')) {
+                    this.ctx.translate(obj.center.x, obj.center.y);
+                    this.ctx.rotate(obj.animationPhase);
+                    this.ctx.translate(-obj.center.x, -obj.center.y);
+                }
+                
+                // 碰撞效果：如果对象有碰撞效果，添加发光效果
+                if (obj.collisionEffect && obj.collisionEffect > 0) {
+                    this.ctx.shadowColor = '#ff6b6b';
+                    this.ctx.shadowBlur = obj.collisionEffect;
+                    obj.collisionEffect -= 0.5; // 逐渐减少效果
+                }
+                
+                // 互动效果：如果对象被持有，添加特殊效果
+                if (obj.isHeld) {
+                    this.ctx.shadowColor = '#3498db';
+                    this.ctx.shadowBlur = 15;
+                    this.ctx.strokeStyle = '#3498db';
+                    this.ctx.lineWidth = obj.lineWidth + 2;
+                }
+                
+                // 互动效果：如果对象有互动效果，添加发光效果
+                if (obj.interactionEffect && obj.interactionEffect > 0) {
+                    this.ctx.shadowColor = '#f39c12';
+                    this.ctx.shadowBlur = obj.interactionEffect;
+                    obj.interactionEffect -= 0.8; // 逐渐减少效果
+                }
+                
+                if (obj.isGroup) {
+                    // 绘制组合对象的所有子路径
+                    obj.groupPaths.forEach(pathData => {
+                        this.drawPath(pathData.path, pathData.color, pathData.lineWidth);
+                    });
+                    
+                    // 绘制组合边框（可选）
+                    this.ctx.strokeStyle = 'rgba(39, 174, 96, 0.3)';
+                    this.ctx.lineWidth = 2;
+                    this.ctx.setLineDash([5, 5]);
+                    this.ctx.strokeRect(
+                        obj.bounds.minX - 2,
+                        obj.bounds.minY - 2,
+                        obj.bounds.maxX - obj.bounds.minX + 4,
+                        obj.bounds.maxY - obj.bounds.minY + 4
+                    );
+                    this.ctx.setLineDash([]);
+                } else {
+                    // 绘制普通对象
+                    this.drawPath(obj.path, obj.color, obj.lineWidth);
+                }
+                
+                this.ctx.restore();
+            }
+            
+            drawPath(path, color, lineWidth) {
+                if (path.length < 2) return;
+                
+                this.ctx.strokeStyle = color;
+                this.ctx.lineWidth = lineWidth;
+                this.ctx.lineCap = 'round';
+                this.ctx.lineJoin = 'round';
+                
+                this.ctx.beginPath();
+                this.ctx.moveTo(path[0].x, path[0].y);
+                
+                for (let i = 1; i < path.length; i++) {
+                    this.ctx.lineTo(path[i].x, path[i].y);
+                }
+                
+                this.ctx.stroke();
+            }
+            
+            drawSelectionBox() {
+                const minX = Math.min(this.selectionStart.x, this.selectionEnd.x);
+                const maxX = Math.max(this.selectionStart.x, this.selectionEnd.x);
+                const minY = Math.min(this.selectionStart.y, this.selectionEnd.y);
+                const maxY = Math.max(this.selectionStart.y, this.selectionEnd.y);
+                
+                this.ctx.strokeStyle = 'rgba(0, 123, 255, 0.8)';
+                this.ctx.lineWidth = 2;
+                this.ctx.setLineDash([5, 5]);
+                this.ctx.strokeRect(minX, minY, maxX - minX, maxY - minY);
+                
+                this.ctx.fillStyle = 'rgba(0, 123, 255, 0.1)';
+                this.ctx.fillRect(minX, minY, maxX - minX, maxY - minY);
+                
+                this.ctx.setLineDash([]);
+            }
+            
+            drawObjectBorder(obj) {
+                const padding = 5;
+                this.ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
+                this.ctx.lineWidth = 2;
+                this.ctx.setLineDash([3, 3]);
+                this.ctx.strokeRect(
+                    obj.bounds.minX - padding,
+                    obj.bounds.minY - padding,
+                    obj.bounds.maxX - obj.bounds.minX + padding * 2,
+                    obj.bounds.maxY - obj.bounds.minY + padding * 2
+                );
+                this.ctx.setLineDash([]);
+            }
+            
+            drawCollisionDebug() {
+                // 绘制所有对象的边界框和精确碰撞区域
+                this.drawnObjects.forEach(obj => {
+                    // 绘制边界框
+                    this.ctx.strokeStyle = 'rgba(0, 255, 0, 0.5)';
+                    this.ctx.lineWidth = 1;
+                    this.ctx.strokeRect(
+                        obj.bounds.minX,
+                        obj.bounds.minY,
+                        obj.bounds.maxX - obj.bounds.minX,
+                        obj.bounds.maxY - obj.bounds.minY
+                    );
+                    
+                    // 绘制精确的碰撞区域
+                    this.drawPreciseCollisionArea(obj);
+                    
+                    // 绘制对象中心点
+                    this.ctx.fillStyle = 'rgba(255, 0, 0, 0.8)';
+                    this.ctx.beginPath();
+                    this.ctx.arc(obj.center.x, obj.center.y, 3, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    
+                    // 显示对象类型、碰撞影响程度和精度信息
+                    this.ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+                    this.ctx.font = '12px Arial';
+                    const impact = this.collisionImpactSettings[obj.type];
+                    const impactText = impact === 0 ? '无影响' : `${impact}%`;
+                    const precisionText = `精度:${this.collisionPrecision}`;
+                    this.ctx.fillText(`${obj.type} (${impactText})`, obj.bounds.minX, obj.bounds.minY - 5);
+                    this.ctx.fillText(precisionText, obj.bounds.minX, obj.bounds.minY - 20);
+                });
+                
+                // 检测并显示碰撞
+                for (let i = 0; i < this.drawnObjects.length; i++) {
+                    for (let j = i + 1; j < this.drawnObjects.length; j++) {
+                        const obj1 = this.drawnObjects[i];
+                        const obj2 = this.drawnObjects[j];
+                        
+                        // 检查碰撞设置
+                        if (!this.shouldCollide(obj1, obj2)) {
+                            continue;
+                        }
+                        
+                        if (this.checkCollision(obj1, obj2)) {
+                            // 根据碰撞影响程度选择颜色
+                            const impact1 = this.collisionImpactSettings[obj1.type];
+                            const impact2 = this.collisionImpactSettings[obj2.type];
+                            const avgImpact = (impact1 + impact2) / 2;
+                            
+                            let lineColor, pointColor;
+                            if (avgImpact === 0) {
+                                lineColor = 'rgba(128, 128, 128, 0.5)'; // 灰色 - 无影响
+                                pointColor = 'rgba(128, 128, 128, 0.5)';
+                            } else if (avgImpact < 50) {
+                                lineColor = 'rgba(255, 165, 0, 0.8)'; // 橙色 - 弱影响
+                                pointColor = 'rgba(255, 165, 0, 0.8)';
+                            } else {
+                                lineColor = 'rgba(255, 0, 0, 0.8)'; // 红色 - 强影响
+                                pointColor = 'rgba(255, 0, 0, 0.8)';
+                            }
+                            
+                            // 绘制碰撞连线
+                            this.ctx.strokeStyle = lineColor;
+                            this.ctx.lineWidth = 2;
+                            this.ctx.beginPath();
+                            this.ctx.moveTo(obj1.center.x, obj1.center.y);
+                            this.ctx.lineTo(obj2.center.x, obj2.center.y);
+                            this.ctx.stroke();
+                            
+                            // 绘制碰撞点
+                            this.ctx.fillStyle = pointColor;
+                            this.ctx.beginPath();
+                            this.ctx.arc(
+                                (obj1.center.x + obj2.center.x) / 2,
+                                (obj1.center.y + obj2.center.y) / 2,
+                                5, 0, Math.PI * 2
+                            );
+                            this.ctx.fill();
+                        }
+                    }
+                }
+            }
+            
+            drawPreciseCollisionArea(obj) {
+                // 绘制精确的碰撞区域，基于实际路径
+                const paths = this.getObjectPaths(obj);
+                
+                paths.forEach(path => {
+                    if (path.length < 2) return;
+                    
+                    // 绘制路径的精确碰撞区域
+                    this.ctx.strokeStyle = 'rgba(255, 0, 255, 0.6)';
+                    this.ctx.lineWidth = this.collisionTolerance * 2;
+                    this.ctx.lineCap = 'round';
+                    this.ctx.lineJoin = 'round';
+                    
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(path[0].x, path[0].y);
+                    
+                    for (let i = 1; i < path.length; i++) {
+                        this.ctx.lineTo(path[i].x, path[i].y);
+                    }
+                    
+                    this.ctx.stroke();
+                    
+                    // 在高精度模式下，显示检测点
+                    if (this.collisionPrecision >= 8) {
+                        this.ctx.fillStyle = 'rgba(255, 255, 0, 0.8)';
+                        const step = Math.max(1, Math.floor(path.length / 20));
+                        
+                        for (let i = 0; i < path.length; i += step) {
+                            this.ctx.beginPath();
+                            this.ctx.arc(path[i].x, path[i].y, 2, 0, Math.PI * 2);
+                            this.ctx.fill();
+                        }
+                    }
+                });
+            }
+            
+            updateObjectsList() {
+                const list = document.getElementById('objectsList');
+                if (this.drawnObjects.length === 0) {
+                    list.textContent = '暂无';
+                } else {
+                    const counts = {};
+                    this.drawnObjects.forEach(obj => {
+                        counts[obj.type] = (counts[obj.type] || 0) + 1;
+                    });
+                    
+                    const typeNames = {
+                        stickman: '火柴人',
+                        circle: '圆形',
+                        platform: '平台',
+                        drawing: '绘画',
+                        group: '组合物体'
+                    };
+                    
+                    list.innerHTML = Object.entries(counts)
+                        .map(([type, count]) => `${typeNames[type] || type}: ${count}`)
+                        .join('<br>');
+                }
+            }
+            
+            gameLoop() {
+                this.update();
+                this.render();
+                requestAnimationFrame(() => this.gameLoop());
+            }
+        }
+        
+        // 启动游戏
+        new SandboxGame();
+    </script>
+</body>
+</html>
