@@ -1387,7 +1387,13 @@
                 const step1 = Math.max(1, Math.floor(path1.length / (precision * 2)));
                 const step2 = Math.max(1, Math.floor(path2.length / (precision * 2)));
                 
-                for (let i = 0; i < path1.length - 1; i += step1) {
+                // 跳过路径的起始和结束部分以减少端点黏住
+                const startSkip1 = Math.min(2, Math.floor(path1.length * 0.1));
+                const endSkip1 = Math.max(path1.length - 3, path1.length - Math.floor(path1.length * 0.1));
+                const startSkip2 = Math.min(2, Math.floor(path2.length * 0.1));
+                const endSkip2 = Math.max(path2.length - 3, path2.length - Math.floor(path2.length * 0.1));
+                
+                for (let i = startSkip1; i < endSkip1; i += step1) {
                     const line1 = {
                         x1: path1[i].x,
                         y1: path1[i].y,
@@ -1395,7 +1401,7 @@
                         y2: path1[Math.min(i + 1, path1.length - 1)].y
                     };
                     
-                    for (let j = 0; j < path2.length - 1; j += step2) {
+                    for (let j = startSkip2; j < endSkip2; j += step2) {
                         const line2 = {
                             x1: path2[j].x,
                             y1: path2[j].y,
@@ -1409,7 +1415,7 @@
                     }
                 }
                 
-                // 高精度模式下的额外检测：检查点到线的距离
+                // 高精度模式下的额外检测：检查点到线的距离（但排除端点）
                 if (precision >= 7) {
                     return this.checkPointToPathDistance(path1, path2, tolerance) ||
                            this.checkPointToPathDistance(path2, path1, tolerance);
@@ -1433,9 +1439,20 @@
                 const u = ((line1.x2 - line1.x1) * (line2.y1 - line1.y1) - 
                           (line2.y2 - line2.y1) * (line1.x1 - line2.x1)) / det;
                 
-                // 考虑容差
-                return t >= -tolerance && t <= 1 + tolerance && 
-                       u >= -tolerance && u <= 1 + tolerance;
+                // 改进的容差处理：减少端点附近的敏感性
+                const endpointTolerance = tolerance * 0.3; // 端点容差更小
+                const midTolerance = tolerance; // 中间部分容差正常
+                
+                // 检查是否在线段内部（避免端点黏住问题）
+                const t_valid = (t >= endpointTolerance && t <= 1 - endpointTolerance) || 
+                               (t >= -midTolerance && t <= 1 + midTolerance && 
+                                (t > 0.2 && t < 0.8)); // 只在线段中间部分使用大容差
+                                
+                const u_valid = (u >= endpointTolerance && u <= 1 - endpointTolerance) || 
+                               (u >= -midTolerance && u <= 1 + midTolerance && 
+                                (u > 0.2 && u < 0.8)); // 只在线段中间部分使用大容差
+                
+                return t_valid && u_valid;
             }
             
             checkParallelLineDistance(line1, line2, tolerance) {
@@ -1461,37 +1478,56 @@
                 if (lenSq !== 0) param = dot / lenSq;
                 
                 let xx, yy;
-                if (param < 0) {
+                let isEndpoint = false;
+                
+                if (param < 0.1) { // 增加端点缓冲区
                     xx = line.x1;
                     yy = line.y1;
-                } else if (param > 1) {
+                    isEndpoint = true;
+                } else if (param > 0.9) { // 增加端点缓冲区
                     xx = line.x2;
                     yy = line.y2;
+                    isEndpoint = true;
                 } else {
                     xx = line.x1 + param * C;
                     yy = line.y1 + param * D;
+                    isEndpoint = false;
                 }
                 
                 const dx = px - xx;
                 const dy = py - yy;
-                return Math.sqrt(dx * dx + dy * dy);
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                // 如果是端点，增加额外的距离惩罚以减少黏住
+                if (isEndpoint) {
+                    return distance * 1.5; // 端点距离增加50%的惩罚
+                }
+                
+                return distance;
             }
             
             checkPointToPathDistance(path1, path2, tolerance) {
-                // 检查路径1中的点到路径2的距离
+                // 检查路径1中的点到路径2的距离（避免端点）
                 const step = Math.max(1, Math.floor(path1.length / 10));
                 
-                for (let i = 0; i < path1.length; i += step) {
+                // 跳过路径1的端点部分
+                const startSkip = Math.min(2, Math.floor(path1.length * 0.15));
+                const endSkip = Math.max(path1.length - 3, path1.length - Math.floor(path1.length * 0.15));
+                
+                for (let i = startSkip; i < endSkip; i += step) {
                     const point = path1[i];
                     let minDistance = Infinity;
                     
-                    // 找到到路径2的最短距离
-                    for (let j = 0; j < path2.length - 1; j++) {
+                    // 找到到路径2的最短距离（同样跳过路径2的端点）
+                    const startSkip2 = Math.min(1, Math.floor(path2.length * 0.1));
+                    const endSkip2 = Math.max(path2.length - 2, path2.length - Math.floor(path2.length * 0.1));
+                    
+                    for (let j = startSkip2; j < endSkip2; j++) {
                         const line = {
                             x1: path2[j].x,
                             y1: path2[j].y,
-                            x2: path2[j + 1].x,
-                            y2: path2[j + 1].y
+                            x2: path2[Math.min(j + 1, path2.length - 1)].x,
+                            y2: path2[Math.min(j + 1, path2.length - 1)].y
                         };
                         
                         const distance = this.pointToLineDistance(point.x, point.y, line);
